@@ -1,0 +1,79 @@
+{
+  "_comment": "HomeKey-ESP32 configuration template for August Smart Lock Gen 2 mod",
+  "_note": "This is a reference template. Actual configuration is done via the web portal at http://192.168.4.1",
+
+  "wifi": {
+    "ssid": "YOUR_WIFI_SSID",
+    "password": "YOUR_WIFI_PASSWORD"
+  },
+
+  "mqtt": {
+    "enabled": true,
+    "broker": "192.168.1.100",
+    "port": 1883,
+    "username": "homekey",
+    "password": "YOUR_MQTT_PASSWORD",
+    "topic_prefix": "homekey/lock",
+    "state_topic": "homekey/lock/state",
+    "command_topic": "homekey/lock/set",
+    "availability_topic": "homekey/lock/availability",
+    "discovery_prefix": "homeassistant"
+  },
+
+  "homekit": {
+    "setup_code": "111-22-333",
+    "device_name": "August Front Door",
+    "manufacturer": "DIY",
+    "model": "August-HomeKey-Mod",
+    "firmware_revision": "1.0.0"
+  },
+
+  "nfc": {
+    "_comment": "SPI mode required for HomeKey. I2C will NOT work.",
+    "interface": "SPI",
+    "pin_sck": 4,
+    "pin_miso": 2,
+    "pin_mosi": 3,
+    "pin_ss": 10,
+    "pin_irq": 1
+  },
+
+  "motor": {
+    "_comment": "DRV8833 H-bridge control pins. PWM at 20kHz.",
+    "pin_ain1": 5,
+    "pin_ain2": 6,
+    "pin_bin1": 7,
+    "pin_bin2": 8,
+    "pwm_frequency_hz": 20000,
+    "pwm_resolution_bits": 8,
+    "lock_duration_ms": 1500,
+    "unlock_duration_ms": 1500,
+    "pwm_duty": 255
+  },
+
+  "accelerometer": {
+    "_comment": "LIS3DHTR on I2C bus for lock position feedback",
+    "interface": "I2C",
+    "pin_sda": 19,
+    "pin_scl": 20,
+    "i2c_address": "0x18",
+    "threshold_locked": {
+      "_comment": "TODO: Calibrate these values with actual lock",
+      "axis": "z",
+      "min": -0.8,
+      "max": -0.3
+    },
+    "threshold_unlocked": {
+      "_comment": "TODO: Calibrate these values with actual lock",
+      "axis": "z",
+      "min": 0.3,
+      "max": 0.8
+    }
+  },
+
+  "leds": {
+    "_comment": "TODO: Map 74AC541 LED driver pins after PCB reverse-engineering",
+    "pin_enable": -1,
+    "pin_data": -1
+  }
+}

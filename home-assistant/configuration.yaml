@@ -1,0 +1,42 @@
+# Home Assistant MQTT Lock Configuration
+#
+# Add this snippet to your Home Assistant configuration.yaml
+# to manually define the August HomeKey lock entity.
+#
+# If MQTT auto-discovery is working (see firmware/config/ha-mqtt-config.yaml),
+# you do NOT need this — the lock entity will be created automatically.
+#
+# After adding, restart Home Assistant or reload MQTT entities.
+
+mqtt:
+  lock:
+    - name: "August Front Door"
+      unique_id: "homekey_front_door_lock"
+      state_topic: "homekey/lock/state"
+      command_topic: "homekey/lock/set"
+      payload_lock: "LOCK"
+      payload_unlock: "UNLOCK"
+      state_locked: "LOCKED"
+      state_unlocked: "UNLOCKED"
+      optimistic: false
+      availability:
+        - topic: "homekey/lock/availability"
+          payload_available: "online"
+          payload_not_available: "offline"
+
+  sensor:
+    # Battery level sensor (TODO: implement battery ADC in firmware)
+    - name: "August Front Door Battery"
+      unique_id: "homekey_front_door_battery"
+      state_topic: "homekey/lock/battery"
+      unit_of_measurement: "%"
+      device_class: battery
+      state_class: measurement
+
+    # WiFi signal strength (useful for debugging connectivity)
+    - name: "August Front Door WiFi Signal"
+      unique_id: "homekey_front_door_wifi"
+      state_topic: "homekey/lock/wifi_rssi"
+      unit_of_measurement: "dBm"
+      device_class: signal_strength
+      state_class: measurement

@@ -1,0 +1,63 @@
+# Home Assistant MQTT Auto-Discovery Configuration
+#
+# This YAML represents the MQTT discovery payload that HomeKey-ESP32 publishes
+# to Home Assistant. If auto-discovery is enabled (discovery_prefix: homeassistant),
+# these entities are created automatically.
+#
+# If auto-discovery is not working, you can manually add these to your HA
+# configuration.yaml (see home-assistant/configuration.yaml).
+
+# Lock entity auto-discovery
+# Published to: homeassistant/lock/homekey_front_door/config
+lock:
+  topic: "homeassistant/lock/homekey_front_door/config"
+  payload:
+    name: "August Front Door"
+    unique_id: "homekey_front_door_lock"
+    state_topic: "homekey/lock/state"
+    command_topic: "homekey/lock/set"
+    payload_lock: "LOCK"
+    payload_unlock: "UNLOCK"
+    state_locked: "LOCKED"
+    state_unlocked: "UNLOCKED"
+    availability:
+      - topic: "homekey/lock/availability"
+        payload_available: "online"
+        payload_not_available: "offline"
+    device:
+      identifiers:
+        - "homekey_august_front_door"
+      name: "August Front Door Lock"
+      model: "ASL-02 HomeKey Mod"
+      manufacturer: "DIY (August + ESP32-C6)"
+      sw_version: "1.0.0"
+
+# Battery sensor auto-discovery (TODO: implement in firmware)
+# Published to: homeassistant/sensor/homekey_front_door_battery/config
+battery_sensor:
+  topic: "homeassistant/sensor/homekey_front_door_battery/config"
+  payload:
+    name: "August Front Door Battery"
+    unique_id: "homekey_front_door_battery"
+    state_topic: "homekey/lock/battery"
+    unit_of_measurement: "%"
+    device_class: "battery"
+    state_class: "measurement"
+    device:
+      identifiers:
+        - "homekey_august_front_door"
+
+# WiFi signal sensor (optional, for debugging)
+# Published to: homeassistant/sensor/homekey_front_door_wifi/config
+wifi_sensor:
+  topic: "homeassistant/sensor/homekey_front_door_wifi/config"
+  payload:
+    name: "August Front Door WiFi"
+    unique_id: "homekey_front_door_wifi"
+    state_topic: "homekey/lock/wifi_rssi"
+    unit_of_measurement: "dBm"
+    device_class: "signal_strength"
+    state_class: "measurement"
+    device:
+      identifiers:
+        - "homekey_august_front_door"

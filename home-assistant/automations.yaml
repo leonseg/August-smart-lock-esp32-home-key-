@@ -1,0 +1,130 @@
+# Home Assistant Automations for August HomeKey Lock
+#
+# Add these automations via the HA UI (Settings → Automations) or paste
+# into your automations.yaml file.
+
+# 1. Auto-lock after 5 minutes if left unlocked
+- id: august_auto_lock_5min
+  alias: "August Front Door - Auto Lock After 5 Minutes"
+  description: "Automatically locks the front door if left unlocked for 5 minutes"
+  trigger:
+    - platform: state
+      entity_id: lock.august_front_door
+      to: "unlocked"
+      for:
+        minutes: 5
+  condition: []
+  action:
+    - service: lock.lock
+      target:
+        entity_id: lock.august_front_door
+  mode: single
+
+# 2. Notification on lock/unlock
+- id: august_lock_notification
+  alias: "August Front Door - Lock State Notification"
+  description: "Sends a notification when the front door is locked or unlocked"
+  trigger:
+    - platform: state
+      entity_id: lock.august_front_door
+      to: "locked"
+      id: locked
+    - platform: state
+      entity_id: lock.august_front_door
+      to: "unlocked"
+      id: unlocked
+  condition: []
+  action:
+    - service: notify.mobile_app_your_iphone
+      data:
+        title: "Front Door Lock"
+        message: >-
+          Front door was {{ trigger.to_state.state }} at
+          {{ now().strftime('%H:%M') }}
+        data:
+          push:
+            category: "lock_notification"
+  mode: single
+
+# 3. Auto-unlock when arriving home (based on device tracker / zone)
+- id: august_auto_unlock_arrive
+  alias: "August Front Door - Unlock on Arrival"
+  description: "Unlocks the front door when you arrive home"
+  trigger:
+    - platform: zone
+      entity_id: person.your_name
+      zone: zone.home
+      event: enter
+  condition:
+    # Only unlock during reasonable hours
+    - condition: time
+      after: "06:00:00"
+      before: "23:00:00"
+    # Only if the door is currently locked
+    - condition: state
+      entity_id: lock.august_front_door
+      state: "locked"
+  action:
+    - service: lock.unlock
+      target:
+        entity_id: lock.august_front_door
+    - service: notify.mobile_app_your_iphone
+      data:
+        title: "Welcome Home"
+        message: "Front door unlocked automatically"
+    # Auto-lock after 2 minutes (safety net)
+    - delay:
+        minutes: 2
+    - service: lock.lock
+      target:
+        entity_id: lock.august_front_door
+  mode: single
+
+# 4. Low battery warning
+- id: august_low_battery
+  alias: "August Front Door - Low Battery Warning"
+  description: "Notifies when lock battery drops below 20%"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.august_front_door_battery
+      below: 20
+  condition: []
+  action:
+    - service: notify.mobile_app_your_iphone
+      data:
+        title: "Lock Battery Low"
+        message: >-
+          August front door lock battery is at
+          {{ states('sensor.august_front_door_battery') }}%.
+          Replace batteries soon.
+        data:
+          push:
+            category: "battery_warning"
+  mode: single
+
+# 5. Lock at bedtime
+- id: august_lock_bedtime
+  alias: "August Front Door - Lock at Bedtime"
+  description: "Ensures the front door is locked at 11 PM"
+  trigger:
+    - platform: time
+      at: "23:00:00"
+  condition:
+    - condition: state
+      entity_id: lock.august_front_door
+      state: "unlocked"
+  action:
+    - service: lock.lock
+      target:
+        entity_id: lock.august_front_door
+    - service: notify.mobile_app_your_iphone
+      data:
+        title: "Goodnight"
+        message: "Front door locked for the night"
+  mode: single
+
+# NOTE: Replace 'notify.mobile_app_your_iphone' with your actual
+# notification service entity. Find it in Settings → Services → Notify.
+#
+# Replace 'person.your_name' with your actual person entity for
+# the arrival automation.

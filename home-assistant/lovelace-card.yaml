@@ -1,0 +1,102 @@
+# Lovelace Dashboard Card for August HomeKey Lock
+#
+# Add this card to your Lovelace dashboard via the UI editor (YAML mode)
+# or paste into your dashboard configuration.
+
+# Option 1: Simple Lock Card
+type: entities
+title: Front Door Lock
+entities:
+  - entity: lock.august_front_door
+    name: August Front Door
+    icon: mdi:lock
+  - entity: sensor.august_front_door_battery
+    name: Battery
+    icon: mdi:battery
+  - entity: sensor.august_front_door_wifi
+    name: WiFi Signal
+    icon: mdi:wifi
+
+---
+
+# Option 2: Custom Button Card (requires HACS custom:button-card)
+# Install via HACS → Frontend → Button Card
+type: custom:button-card
+entity: lock.august_front_door
+name: Front Door
+icon: mdi:lock
+show_state: true
+styles:
+  card:
+    - height: 200px
+    - border-radius: 15px
+  icon:
+    - width: 60px
+state:
+  - value: locked
+    color: green
+    icon: mdi:lock
+    name: Locked
+  - value: unlocked
+    color: orange
+    icon: mdi:lock-open
+    name: Unlocked
+  - value: jammed
+    color: red
+    icon: mdi:lock-alert
+    name: Jammed
+tap_action:
+  action: toggle
+hold_action:
+  action: more-info
+
+---
+
+# Option 3: Vertical Stack with Lock + History
+type: vertical-stack
+cards:
+  - type: entity
+    entity: lock.august_front_door
+    name: August Front Door
+    icon: mdi:lock-smart
+
+  - type: horizontal-stack
+    cards:
+      - type: button
+        entity: lock.august_front_door
+        name: Lock
+        icon: mdi:lock
+        tap_action:
+          action: call-service
+          service: lock.lock
+          target:
+            entity_id: lock.august_front_door
+
+      - type: button
+        entity: lock.august_front_door
+        name: Unlock
+        icon: mdi:lock-open
+        tap_action:
+          action: call-service
+          service: lock.unlock
+          target:
+            entity_id: lock.august_front_door
+
+  - type: history-graph
+    entities:
+      - entity: lock.august_front_door
+    hours_to_show: 24
+
+  - type: horizontal-stack
+    cards:
+      - type: sensor
+        entity: sensor.august_front_door_battery
+        name: Battery
+        graph: line
+        hours_to_show: 168
+
+      - type: sensor
+        entity: sensor.august_front_door_wifi
+        name: WiFi
+        graph: line
+        hours_to_show: 24
