@@ -40,3 +40,18 @@ mqtt:
       unit_of_measurement: "dBm"
       device_class: signal_strength
       state_class: measurement
+
+  light:
+    # WS2812B LED ring on the lock for status indication
+    - name: "August Front Door LEDs"
+      unique_id: "homekey_front_door_leds"
+      state_topic: "homekey/lock/led/state"
+      command_topic: "homekey/lock/led/set"
+      brightness_state_topic: "homekey/lock/led/brightness"
+      brightness_command_topic: "homekey/lock/led/brightness/set"
+      rgb_state_topic: "homekey/lock/led/rgb"
+      rgb_command_topic: "homekey/lock/led/rgb/set"
+      availability:
+        - topic: "homekey/lock/availability"
+          payload_available: "online"
+          payload_not_available: "offline"

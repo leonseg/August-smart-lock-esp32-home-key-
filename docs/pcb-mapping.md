@@ -1,9 +1,6 @@
-# PCB Mapping — August Smart Lock Gen 2 (ASL-02)
+# August Lock Teardown & Motor Identification
 
-This document is a template for reverse-engineering the August Smart Lock Gen 2 PCB. You must fill in the tables below by tracing each pin/pad with a multimeter in continuity mode.
-
-> [!WARNING]
-> **This is the most critical step of the project.** Incorrect pin mapping can destroy components. Take your time, verify every connection twice, and photograph everything.
+Since we are replacing the entire original PCB with a new proto PCB build, the teardown process is simple: open the lock, remove the PCB, and identify the motor and battery connections.
 
 ## FCC Reference
 
@@ -11,163 +8,113 @@ This document is a template for reverse-engineering the August Smart Lock Gen 2 
 - **FCC ID:** 2AB6UASL2
 - FCC filings may contain internal photos — check [FCC ID search](https://www.fcc.gov/oet/ea/fccid) for reference images
 
-## Equipment Needed
+## Teardown Photos
 
-- Multimeter with continuity/beep mode
-- Magnifying glass or USB microscope
-- Good lighting (LED ring light recommended)
-- Camera for HD photos
-- Tweezers and probes
-- Isopropyl alcohol + brush (to clean flux residue for clearer trace visibility)
-
-## Step 1: Photography
-
-Take the following photos before desoldering anything:
-
-- [ ] PCB front (component side) — full board, in focus
-- [ ] PCB back (solder side) — full board, in focus
-- [ ] Close-up of STM32L152 and surrounding passives
-- [ ] Close-up of CC2541 BLE chip and antenna trace
-- [ ] Close-up of DRV8833 motor driver
-- [ ] Close-up of LIS3DHTR accelerometer
-- [ ] Close-up of 74AC541 LED driver
-- [ ] Close-up of each connector (flex cables, battery, motor)
-- [ ] Close-up of voltage regulator(s)
-
-Place photos in the [`docs/images/`](images/) directory.
-
-## Step 2: Identify ICs
-
-| IC | Package | Marking | Datasheet | Location on PCB |
-|----|---------|---------|-----------|----------------|
-| STM32L152 | LQFP64 (?) | _to verify_ | [ST](https://www.st.com/en/microcontrollers-microprocessors/stm32l152.html) | _main MCU area_ |
-| CC2541 | QFN-40 (?) | _to verify_ | [TI](https://www.ti.com/product/CC2541) | _near antenna_ |
-| DRV8833 | WSON-10 or HTSSOP-16 | _to verify_ | [TI](https://www.ti.com/product/DRV8833) | _near motor connector_ |
-| LIS3DHTR | LGA-16 | _to verify_ | [ST](https://www.st.com/en/mems-and-sensors/lis3dhtr.html) | _center of PCB?_ |
-| 74AC541 | TSSOP-20 (?) | _to verify_ | Various | _near LED connector_ |
-| Voltage Reg | SOT-23-5 (?) | _to verify_ | _TBD_ | _near battery connector_ |
-
-## Step 3: Trace STM32L152 Pins
-
-For each pin of the STM32, use the multimeter continuity mode to trace where it connects. Mark the function based on the STM32L152 datasheet and the destination component.
-
-| STM32 Pin # | STM32 Function | Trace Goes To | Component | Signal | Notes |
-|-------------|---------------|---------------|-----------|--------|-------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
-| 4 | | | | | |
-| 5 | | | | | |
-| ... | | | | | |
+| | |
+|---|---|
+| ![August PCB removed](images/august-pcb-removed.jpg) | ![Lock internals with gears](images/lock-internals-gears.jpg) |
+| *Original August PCB — component side* | *Lock body with gear train and motor visible* |
 
 > [!TIP]
-> Focus on pins that connect to the DRV8833, LIS3DHTR, and 74AC541 first. Those are the ones you need to rewire to the ESP32-C6.
+> Place your own photos in the [`docs/images/`](images/) directory as you go.
 
-### Key STM32L152 Pins to Look For
+## Tools Needed
 
-| Function | Expected STM32 Pin Type | Destination |
-|----------|------------------------|-------------|
-| Motor PWM (AIN1) | Timer output (TIMx_CHx) | DRV8833 pin 2 |
-| Motor PWM (AIN2) | Timer output (TIMx_CHx) | DRV8833 pin 7 |
-| Motor PWM (BIN1) | Timer output (TIMx_CHx) | DRV8833 pin 10 |
-| Motor PWM (BIN2) | Timer output (TIMx_CHx) | DRV8833 pin 15 |
-| I2C SDA | I2Cx_SDA | LIS3DHTR pin 4 |
-| I2C SCL | I2Cx_SCL | LIS3DHTR pin 6 |
-| SPI/I2C to CC2541 | SPI or I2C | CC2541 |
-| LED data/enable | GPIO | 74AC541 inputs |
-| Button input | GPIO (input, pull-up) | Button connector |
-| Battery ADC | ADC input | Voltage divider |
+- Phillips screwdriver (for lock housing screws)
+- Small flathead screwdriver or spudger (for flex cable connectors)
+- Multimeter (to identify motor wire polarity)
+- Camera (to document the teardown)
 
-## Step 4: Trace CC2541 Pins
+## Step 1: Open the Lock Housing
 
-| CC2541 Pin # | CC2541 Function | Trace Goes To | Component | Signal | Notes |
-|-------------|----------------|---------------|-----------|--------|-------|
-| 1 | | | | | |
-| 2 | | | | | |
-| ... | | | | | |
+1. Remove the 4xAA batteries
+2. Remove the back cover screws (4 Phillips screws)
+3. Carefully separate the back plate from the body
+4. The PCB is visible, connected to the motor and battery connector via flex cables
+
+## Step 2: Remove the Original PCB
+
+1. Disconnect all flex cables from the PCB (battery, motor, LED ring, button)
+2. Unscrew the PCB mounting screws (if any)
+3. Lift the PCB out of the housing
+4. Set it aside — it is no longer needed
 
 > [!NOTE]
-> The CC2541 pins are less critical since we're removing BLE entirely. However, documenting them helps identify shared traces that might be affected when desoldering.
+> Keep the original PCB in case you want to revert the lock to stock. It's also useful as a reference for connector types.
 
-## Step 5: Power Rails
+## Step 3: Identify Motor Wires
 
-### 6V Motor Rail
+The DC motor connects to the lock body with **2 wires** (red and black visible in the photos).
 
-| Test Point | Voltage | Connects To | Notes |
-|-----------|---------|------------|-------|
-| Battery + | 6V | | Main battery positive |
-| DRV8833 VM | 6V | | Motor supply |
-| | | | |
+| Wire | Color (typical) | Function |
+|------|----------------|----------|
+| Motor + | Red | Positive (direction depends on polarity) |
+| Motor - | Black | Negative |
 
-### 3.3V Logic Rail
+To determine lock/unlock direction:
+1. Connect the motor wires to a 3V-6V battery temporarily
+2. Observe which way the gear train turns
+3. Swap polarity and observe the opposite direction
+4. Note which polarity = lock (extend deadbolt) and which = unlock (retract)
 
-| Test Point | Voltage | Connects To | Notes |
-|-----------|---------|------------|-------|
-| Regulator OUT | 3.3V | | |
-| STM32 VDD | 3.3V | | |
-| CC2541 VDD | 3.3V | | |
-| LIS3DHTR VDD | 3.3V | | |
-| DRV8833 VCC | 3.3V (?) | | Logic supply, verify |
-| 74AC541 VCC | 3.3V | | |
+> [!TIP]
+> Mark the wires with tape: "LOCK = Red→+" or whatever your motor's mapping is.
 
-### Ground
+### Motor Characteristics
 
-Verify that all GND pins are connected to a common ground plane:
+Measure these values for calibration:
 
-- [ ] STM32 GND pins
-- [ ] CC2541 GND pins/pad
-- [ ] DRV8833 GND pins
-- [ ] LIS3DHTR GND
-- [ ] 74AC541 GND
-- [ ] Battery negative
-- [ ] Motor connector GND
+| Parameter | How to Measure | Your Value |
+|-----------|---------------|------------|
+| Stall current | Apply 6V, hold motor shaft, read amps | _____ mA |
+| No-load current | Apply 6V, motor spinning freely | _____ mA |
+| Lock rotation time | Time from unlocked to locked at 6V | _____ ms |
+| Unlock rotation time | Time from locked to unlocked at 6V | _____ ms |
 
-## Step 6: Connectors
+## Step 4: Identify Battery Connector
 
-### Main Flex Connector
+The 4xAA battery holder connects via a cable or flex to the PCB area:
 
-| Pin # | Signal | Voltage | Connects To | Notes |
-|-------|--------|---------|------------|-------|
-| 1 | | | | |
-| 2 | | | | |
-| 3 | | | | |
-| ... | | | | |
+| Wire | Voltage | Function |
+|------|---------|----------|
+| Battery + | ~6V (4×1.5V) | Main power input |
+| Battery - | GND | Ground |
 
-### LED Flex Connector
+Measure with a multimeter to confirm 6V with fresh batteries.
 
-| Pin # | Signal | Voltage | Connects To | Notes |
-|-------|--------|---------|------------|-------|
-| 1 | | | | |
-| 2 | | | | |
-| ... | | | | |
+## Step 5: Assess Available Space
 
-### Motor Connector
+The proto PCB and all modules must fit inside the lock housing where the original PCB was.
 
-| Pin # | Signal | Voltage | Connects To | Notes |
-|-------|--------|---------|------------|-------|
-| 1 | | | | |
-| 2 | | | | |
-| ... | | | | |
+Measure and record:
 
-## Step 7: Decoupling and Passives
+| Dimension | Value |
+|-----------|-------|
+| PCB cavity width | _____ mm |
+| PCB cavity height | _____ mm |
+| PCB cavity depth (max component height) | _____ mm |
+| Mounting hole positions | _____ |
 
-Note any important passives near the MCU:
+> [!TIP]
+> A standard 30×70mm proto PCB should fit in the space where the original PCB sat. Verify with your specific lock before ordering.
 
-| Component | Value | Connected Between | Purpose |
-|-----------|-------|-------------------|---------|
-| C? | _pF/nF_ | STM32 VDD-GND | Decoupling |
-| R? | _kΩ_ | | Pull-up/down |
-| ... | | | |
+## Step 6: Identify What to Keep
 
-## Post-Mapping Checklist
+**Keep (reuse):**
+- DC motor + gear train (in the lock body)
+- Lock housing (top and bottom shell)
+- 4xAA battery holder
+- Thumb-turn mechanism
+- Deadbolt adapter / tailpiece
 
-After completing the trace mapping:
+**Remove (replace):**
+- Original PCB (STM32L152 + CC2541 + DRV8833 + LIS3DHTR + 74AC541 + voltage regulator)
+- Original LED ring PCB (replaced with WS2812B)
 
-- [ ] All DRV8833 control pins identified
-- [ ] LIS3DHTR I2C address confirmed (SDO pin high=0x19 or low=0x18)
-- [ ] 74AC541 enable and data pins identified
-- [ ] Power regulator input/output identified
-- [ ] No unexpected connections between components
-- [ ] Pin mapping table in [`hardware/pinout-mapping.md`](../hardware/pinout-mapping.md) updated
-- [ ] Wiring guide in [`wiring-guide.md`](wiring-guide.md) updated with actual pin assignments
-- [ ] Photos placed in [`docs/images/`](images/)
+## Next Steps
+
+Once the lock is open and the motor/battery connections are identified:
+
+1. [Assemble the new control board](../docs/wiring-guide.md)
+2. [Flash the firmware](../docs/flashing-guide.md)
+3. [Configure Home Assistant](../home-assistant/configuration.yaml)

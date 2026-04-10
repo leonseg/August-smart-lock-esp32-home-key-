@@ -1,37 +1,49 @@
 # Wiring Guide
 
-Complete wiring reference for connecting the ESP32-C6 Super Mini to the August Smart Lock Gen 2 PCB and PN532 NFC module.
-
-> [!WARNING]
-> **Do not wire anything until you have completed the [PCB mapping](pcb-mapping.md).** The pin assignments below are based on the ESP32-C6 Super Mini pinout and known DRV8833/LIS3DHTR conventions. The actual PCB trace routing must be verified with a multimeter.
+Complete wiring reference for assembling the new control board on a prototype PCB using breakout modules.
 
 ## Overview
 
-Three subsystems need wiring:
+All components are breakout modules soldered/wired on a single proto PCB:
 
-1. **ESP32-C6 → August PCB** (motor driver + accelerometer + LEDs)
-2. **ESP32-C6 → PN532 NFC** (SPI bus for HomeKey)
-3. **Power rails** (6V motor, 3.3V logic)
+1. **ESP32-C6 Super Mini** — main controller
+2. **DRV8833 module** — motor driver (PWM)
+3. **LIS3DH module** — accelerometer (I2C)
+4. **PN532 NFC Mini** — HomeKey reader (SPI)
+5. **DC-DC step-down module** — 6V → 3.3V power
+6. **WS2812B LED ring** — status LEDs (single data pin)
 
-## 1. ESP32-C6 → August PCB (DRV8833 + LIS3DHTR)
+## 1. Motor Control — DRV8833 Module
 
-| Signal | Component | ESP32-C6 Pin | Notes |
-|--------|-----------|-------------|-------|
-| AIN1 (motor fwd) | DRV8833 | GPIO5 (PWM) | LEDC channel 0, 20kHz |
-| AIN2 (motor rev) | DRV8833 | GPIO6 (PWM) | LEDC channel 1, 20kHz |
-| BIN1 | DRV8833 | GPIO7 (PWM) | Channel B — may be unused, verify |
-| BIN2 | DRV8833 | GPIO8 (PWM) | Channel B — may be unused, verify |
-| nSLEEP | DRV8833 | 3.3V (tied high) | Always active, ~1mA standby |
-| SDA | LIS3DHTR | GPIO19 | I2C data |
-| SCL | LIS3DHTR | GPIO20 | I2C clock |
-| INT1 | LIS3DHTR | GPIO3 (optional) | Motion interrupt, for wake-on-tap |
-| 3V3 | Logic rail | 3V3 | From battery regulator |
-| GND | Common | GND | Common ground |
+| DRV8833 Module Pin | ESP32-C6 Pin | Notes |
+|-------------------|-------------|-------|
+| AIN1 | GPIO5 (PWM) | LEDC channel 0, 20kHz — motor forward |
+| AIN2 | GPIO6 (PWM) | LEDC channel 1, 20kHz — motor reverse |
+| BIN1 | GPIO7 (PWM) | Channel B — possibly unused |
+| BIN2 | GPIO8 (PWM) | Channel B — possibly unused |
+| SLP (nSLEEP) | 3.3V (tied high) | Always active. Module may have onboard pull-up |
+| VM | 6V battery direct | Motor power — bypass the DC-DC step-down |
+| GND | GND | Common ground |
+| AOUT1 | Motor wire + | To DC motor |
+| AOUT2 | Motor wire - | To DC motor |
 
 > [!NOTE]
-> The August lock likely uses only one DRV8833 channel (A) for the motor. Channel B may drive the speaker/buzzer or may be unused. Verify during PCB mapping.
+> The DRV8833 module likely uses only Channel A for the lock motor. Channel B is available for a buzzer or left unused.
 
-## 2. PN532 → ESP32-C6 (SPI — Required for HomeKey)
+## 2. Position Sensor — LIS3DH Module
+
+| LIS3DH Module Pin | ESP32-C6 Pin | Notes |
+|-------------------|-------------|-------|
+| SDA | GPIO19 | I2C data — pull-ups on module |
+| SCL | GPIO20 | I2C clock — pull-ups on module |
+| VCC | 3.3V | From DC-DC step-down |
+| GND | GND | Common |
+| INT1 | GPIO9 (optional) | Motion interrupt for wake-on-tap |
+
+> [!TIP]
+> The LIS3DH module includes onboard I2C pull-up resistors. No external pull-ups needed.
+
+## 3. NFC Reader — PN532 (SPI — Required for HomeKey)
 
 | PN532 Pin | ESP32-C6 Pin | Function |
 |-----------|-------------|----------|
@@ -60,108 +72,123 @@ Three subsystems need wiring:
 └─────────┘
 ```
 
-## Pin Conflict Resolution
+## 4. Status LEDs — WS2812B
 
-The default HomeKey-ESP32 firmware expects specific SPI pins that may conflict with other peripherals. Here is how conflicts are resolved:
-
-| GPIO | Default Use | Conflict | Resolution |
-|------|-------------|----------|------------|
-| GPIO5 | HomeKey SPI SS | Motor AIN1 | **Moved SPI SS → GPIO10** |
-| GPIO19 | HomeKey SPI MISO | I2C SDA (LIS3DHTR) | **Moved SPI MISO → GPIO2** |
-| GPIO23 | HomeKey SPI MOSI | Not available on C6 | **Moved SPI MOSI → GPIO3** |
-| GPIO18 | HomeKey SPI SCK | May conflict | **Moved SPI SCK → GPIO4** |
+| WS2812B Pin | ESP32-C6 Pin | Notes |
+|-------------|-------------|-------|
+| DIN (Data In) | GPIO0 | NeoPixel protocol, add 330Ω series resistor |
+| VCC | 3.3V | Works at 3.3V for short LED strips |
+| GND | GND | Common |
 
 > [!TIP]
-> The HomeKey-ESP32 firmware allows configuring custom SPI pins via the web interface or config file. The pins listed above are the resolved assignments that avoid all conflicts.
+> Add a **330Ω resistor** between GPIO0 and the WS2812B DIN pin to protect the data line. Add a **100μF capacitor** across VCC/GND near the first LED to smooth power.
 
-## 3. Power Wiring
+## 5. Power — DC-DC Step-Down Module
+
+| Connection | From | To | Notes |
+|-----------|------|-----|-------|
+| VIN | 4xAA battery + (6V) | Module VIN | Input voltage |
+| VOUT | Module 3.3V output | 3.3V rail | Powers ESP32-C6, PN532, LIS3DH, WS2812B |
+| GND | Battery GND | Module GND + common GND | |
 
 ```
 4xAA Battery Pack (6V)
 │
-├──► DRV8833 VM pin ──► Motor power (6V)
+├──► DRV8833 module VM ──► Motor power (6V direct)
 │
-├──► August PCB 3.3V regulator ──► 3.3V rail
+├──► DC-DC Step-Down module VIN
 │    │
-│    ├──► ESP32-C6 3V3 pin
-│    ├──► PN532 VCC
-│    ├──► LIS3DHTR VDD
-│    └──► 74AC541 VCC
+│    └──► 3.3V VOUT ──► 3.3V rail
+│         │
+│         ├──► ESP32-C6 3V3 pin
+│         ├──► PN532 VCC
+│         ├──► LIS3DH VCC
+│         └──► WS2812B VCC
 │
-└──► GND (common to all components)
+└──► GND (common to all modules)
 ```
 
 > [!WARNING]
-> **Do NOT power the ESP32-C6 from USB and batteries simultaneously** during development. Disconnect the battery pack when flashing via USB-C to avoid voltage conflicts.
+> **Do NOT power the ESP32-C6 from USB and batteries simultaneously.** Disconnect the battery pack when flashing via USB-C.
 
-## Wiring Diagram (ASCII)
+## Pin Conflict Resolution
 
-```
-                         ┌──────────────────────────────┐
-                         │      ESP32-C6 Super Mini      │
-                         │                              │
-  DRV8833 AIN1 ◄────────┤ GPIO5          GPIO4 ├───────► PN532 SCK
-  DRV8833 AIN2 ◄────────┤ GPIO6          GPIO3 ├───────► PN532 MOSI
-  DRV8833 BIN1 ◄────────┤ GPIO7          GPIO2 ├───────► PN532 MISO
-  DRV8833 BIN2 ◄────────┤ GPIO8         GPIO10 ├───────► PN532 SS/CS
-                         │                              │
-  LIS3DHTR SDA ◄────────┤ GPIO19        GPIO1  ├───────► PN532 IRQ (opt)
-  LIS3DHTR SCL ◄────────┤ GPIO20               │
-                         │                              │
-  Battery 3V3 ──────────┤ 3V3            3V3   ├───────► PN532 VCC
-  Battery GND ──────────┤ GND            GND   ├───────► PN532 GND
-                         │                              │
-                         └──────────────────────────────┘
-```
+With breakout modules on a proto PCB, most pin conflicts are avoided by choosing non-overlapping GPIOs:
 
-## Soldering Tips
-
-### Desoldering the STM32L152 + CC2541
-
-1. Apply flux generously to all pins
-2. Use a hot air station at 350°C with a medium nozzle
-3. Heat evenly — rotate around the chip until it lifts
-4. Clean pads with solder wick and flux
-5. Inspect for lifted pads or damaged traces under magnification
-
-### Wiring the ESP32-C6
-
-1. Use 30AWG silicone wire (flexible, heat resistant)
-2. Tin both the wire ends and the PCB pads before joining
-3. Keep wires short and route them flat against the PCB
-4. Secure wires with a small dot of hot glue or kapton tape
-5. Double-check every connection with multimeter continuity before powering on
+| GPIO | Default HomeKey-ESP32 | Our Assignment | Conflict? |
+|------|----------------------|----------------|-----------|
+| GPIO5 | SPI SS | Motor AIN1 | Resolved → SPI SS moved to GPIO10 |
+| GPIO19 | SPI MISO | I2C SDA | Resolved → SPI MISO moved to GPIO2 |
+| GPIO23 | SPI MOSI | N/A on C6 | Resolved → SPI MOSI moved to GPIO3 |
+| GPIO18 | SPI SCK | Free | Resolved → SPI SCK moved to GPIO4 |
 
 > [!TIP]
-> Take a photo of each connection as you solder it. This makes troubleshooting much easier and helps document the build for others.
+> The HomeKey-ESP32 firmware allows configuring custom SPI pins via the web interface. Use the assignments listed above.
 
-## Connector Reference
+## Wiring Diagram
 
-The August PCB has several flex/ribbon connectors:
+```
+                         ┌──────────────────────────────────┐
+                         │       ESP32-C6 Super Mini         │
+                         │                                  │
+  DRV8833 AIN1 ◄─────── ┤ GPIO5            GPIO4 ├────────► PN532 SCK
+  DRV8833 AIN2 ◄─────── ┤ GPIO6            GPIO3 ├────────► PN532 MOSI
+  DRV8833 BIN1 ◄─────── ┤ GPIO7            GPIO2 ├────────► PN532 MISO
+  DRV8833 BIN2 ◄─────── ┤ GPIO8           GPIO10 ├────────► PN532 SS/CS
+                         │                                  │
+  LIS3DH SDA   ◄─────── ┤ GPIO19          GPIO1  ├────────► PN532 IRQ
+  LIS3DH SCL   ◄─────── ┤ GPIO20          GPIO0  ├──[330Ω]─► WS2812B DIN
+                         │                                  │
+  DC-DC 3.3V   ─────────┤ 3V3              3V3   ├────────► PN532 VCC
+  Common GND   ─────────┤ GND              GND   ├────────► PN532 GND
+                         │                                  │
+                         └──────────────────────────────────┘
 
-| Connector | Connects To | Notes |
-|-----------|------------|-------|
-| Main flex | Battery board + motor | Carries 6V, GND, motor signals |
-| LED flex | LED ring PCB | Drives the status LEDs via 74AC541 |
-| Button flex | Manual turn sensor | Detects physical button press |
+  DC-DC Step-Down:  Battery 6V ──► VIN | VOUT ──► 3.3V rail
+  DRV8833 Module:   Battery 6V ──► VM  | AOUT1/2 ──► Motor
+```
 
-> [!NOTE]
-> These connectors remain in their original positions. Only the MCU and BLE chip are replaced.
+## Assembly Tips
+
+### Mounting on Proto PCB
+
+1. Plan the layout before soldering — place all modules on the proto PCB to verify fit
+2. The ESP32-C6 Super Mini can be soldered with header pins for easy removal
+3. Mount the DRV8833 module near the edge closest to the motor wires
+4. Mount the DC-DC step-down near the battery connector
+5. Keep the PN532 accessible for IPEX antenna cable routing
+
+### Wiring Best Practices
+
+1. Use 30AWG silicone wire — flexible and heat resistant
+2. Color-code your wires: red=3.3V, black=GND, blue=SPI, green=I2C, yellow=PWM
+3. Keep wires short and route them flat against the proto PCB
+4. Use the proto PCB copper traces for power rails (3.3V and GND) where possible
+5. Secure wires with hot glue or kapton tape
+
+### Fitting Inside the Lock
+
+1. The proto PCB replaces the original August PCB in the same cavity
+2. Measure the cavity before cutting your proto PCB to size
+3. The PN532 can sit on top of or beside the proto PCB (it has its own PCB)
+4. Route the IPEX antenna cable out through the original PCB opening area
+5. Ensure no wires interfere with the gear train
 
 ## Validation Checklist
 
-After wiring, verify each connection before powering on:
+Before powering on, verify each connection with a multimeter:
 
+- [ ] DC-DC step-down: 6V input, 3.3V output confirmed
+- [ ] No shorts between 3.3V and GND
+- [ ] No shorts between 6V motor rail and 3.3V logic rail
 - [ ] Continuity: GPIO5 → DRV8833 AIN1
 - [ ] Continuity: GPIO6 → DRV8833 AIN2
-- [ ] Continuity: GPIO7 → DRV8833 BIN1
-- [ ] Continuity: GPIO8 → DRV8833 BIN2
-- [ ] Continuity: GPIO19 → LIS3DHTR SDA
-- [ ] Continuity: GPIO20 → LIS3DHTR SCL
+- [ ] Continuity: GPIO19 → LIS3DH SDA
+- [ ] Continuity: GPIO20 → LIS3DH SCL
 - [ ] Continuity: GPIO4 → PN532 SCK
 - [ ] Continuity: GPIO2 → PN532 MISO
 - [ ] Continuity: GPIO3 → PN532 MOSI
 - [ ] Continuity: GPIO10 → PN532 SS/CS
-- [ ] No shorts between 3V3 and GND
-- [ ] No shorts between 6V motor rail and 3V3 logic rail
+- [ ] Continuity: GPIO0 → 330Ω → WS2812B DIN
 - [ ] All GND connections are common
+- [ ] DRV8833 VM connected to 6V battery (not 3.3V!)

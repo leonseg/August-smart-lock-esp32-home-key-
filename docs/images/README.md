@@ -2,15 +2,20 @@
 
 Place your project photos here for documentation reference.
 
-## Suggested Photos
+## Current Photos
 
-- `pcb-front.jpg` — August PCB component side
-- `pcb-back.jpg` — August PCB solder side
-- `stm32-closeup.jpg` — STM32L152 before desoldering
-- `cc2541-closeup.jpg` — CC2541 BLE chip before desoldering
-- `drv8833-closeup.jpg` — DRV8833 motor driver
-- `lis3dhtr-closeup.jpg` — LIS3DHTR accelerometer
-- `esp32c6-wired.jpg` — ESP32-C6 after wiring
+- `august-pcb-removed.jpg` — Original August PCB after removal (component side)
+- `lock-internals-gears.jpg` — Lock body interior showing gear train, motor, and battery holders
+
+## Suggested Additional Photos
+
+- `proto-pcb-layout.jpg` — New proto PCB with all modules before wiring
+- `proto-pcb-wired.jpg` — Proto PCB after all wiring complete
+- `esp32c6-mounted.jpg` — ESP32-C6 Super Mini on the proto PCB
+- `drv8833-module.jpg` — DRV8833 breakout module wired
+- `lis3dh-module.jpg` — LIS3DH breakout module wired
 - `pn532-mounted.jpg` — PN532 NFC module in lock body
+- `ws2812b-ring.jpg` — WS2812B LED ring installed
+- `dc-dc-stepdown.jpg` — DC-DC step-down module wired
 - `antenna-slot.jpg` — NFC antenna pocket in door edge
-- `final-assembly.jpg` — Completed assembly
+- `final-assembly.jpg` — Completed assembly in lock housing

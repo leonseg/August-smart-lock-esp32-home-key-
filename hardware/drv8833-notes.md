@@ -2,7 +2,10 @@
 
 ## Overview
 
-The DRV8833 is a dual H-bridge motor driver by Texas Instruments, used in the August Smart Lock to drive the DC motor that rotates the deadbolt.
+The DRV8833 is a dual H-bridge motor driver by Texas Instruments. We use a **DRV8833 breakout module** to drive the August lock's DC motor.
+
+> [!NOTE]
+> We are using a standalone DRV8833 breakout module on the proto PCB, not the DRV8833 IC that was on the original August PCB. The module has labeled header pins (AIN1, AIN2, BIN1, BIN2, VM, GND, SLP) and onboard decoupling capacitors.
 
 ## Key Specifications
 
@@ -15,7 +18,7 @@ The DRV8833 is a dual H-bridge motor driver by Texas Instruments, used in the Au
 | Control | PWM per H-bridge leg |
 | Protection | Overcurrent, thermal shutdown, UVLO |
 | Sleep Current | ~1mA (nSLEEP HIGH), <1μA (nSLEEP LOW) |
-| Package | HTSSOP-16 or WSON-10 |
+| Package | Breakout module (IC: HTSSOP-16 or WSON-10) |
 
 ## H-Bridge Control Modes
 
@@ -33,7 +36,7 @@ The DRV8833 is a dual H-bridge motor driver by Texas Instruments, used in the Au
 Same control logic as Channel A but on BIN1/BIN2 and BOUT1/BOUT2.
 
 > [!NOTE]
-> The August lock likely uses only Channel A for the motor. Channel B may drive a piezo buzzer/speaker for feedback sounds, or it may be entirely unused. **Verify during PCB reverse-engineering.**
+> We use Channel A for the lock motor. Channel B is available for a piezo buzzer or left unused.
 
 ## PWM Control with ESP32-C6
 
@@ -77,7 +80,7 @@ The nSLEEP pin controls the DRV8833's low-power sleep mode:
 
 ### Our Design Choice: Tied to 3.3V
 
-We tie nSLEEP directly to the 3.3V rail, keeping the DRV8833 always active. This simplifies the design (no GPIO needed for sleep control) at the cost of ~1mA continuous draw.
+The nSLEEP pin is tied to 3.3V (always active). Most DRV8833 breakout modules already have an onboard pull-up resistor on nSLEEP, so this may be handled automatically. Check your specific module.
 
 **Trade-off:**
 - **Pro:** Simpler wiring, instant motor response

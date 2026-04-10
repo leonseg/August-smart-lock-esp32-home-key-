@@ -28,6 +28,28 @@ Common problems and solutions for the August HomeKey mod.
 - Ensure the antenna is flush-mounted and as close to the surface as possible.
 - Try tapping with the watch face (not the band side) directly on the antenna location.
 
+## WS2812B LED Issues
+
+### LEDs don't light up
+
+| Check | Fix |
+|-------|-----|
+| Data pin correct? | Verify GPIO0 → 330Ω resistor → WS2812B DIN |
+| Power connected? | Check 3.3V to WS2812B VCC |
+| GND connected? | Verify common ground |
+| LED count in config? | Must match actual number of LEDs |
+
+### Wrong colors or flickering
+
+- Add a **330Ω resistor** on the data line between GPIO0 and DIN
+- Add a **100μF capacitor** across VCC/GND near the first LED
+- Ensure solid solder joints — NeoPixel protocol is timing-sensitive
+
+### Only the first LED works
+
+- Check the data chain: DOUT of first LED → DIN of second LED
+- A dead LED in the chain breaks all downstream LEDs
+
 ## Motor Issues
 
 ### Motor doesn't turn
@@ -35,10 +57,10 @@ Common problems and solutions for the August HomeKey mod.
 | Check | Fix |
 |-------|-----|
 | Battery voltage? | Measure across battery holder — should be 5-6V (4xAA) |
-| DRV8833 getting power? | Measure VM pin — should show battery voltage |
-| nSLEEP high? | Should be tied to 3.3V |
+| DRV8833 module VM? | Measure VM pin — should show 6V battery voltage |
+| nSLEEP high? | Should be tied to 3.3V (module may have pull-up) |
 | PWM signals? | Use oscilloscope or LED on GPIO5/6 to verify output |
-| Motor connector seated? | Reseat the motor flex cable |
+| Motor wires connected? | Check AOUT1/AOUT2 → motor wire continuity |
 | Correct GPIOs? | Verify AIN1=GPIO5, AIN2=GPIO6 in firmware config |
 
 ### Motor turns but doesn't lock/unlock fully
@@ -54,22 +76,26 @@ Common problems and solutions for the August HomeKey mod.
 - **DRV8833 stuck:** Verify both AIN1 and AIN2 are controlled — setting both LOW = coast (stop)
 - **Firmware crash:** Check serial log for crash/reboot loop. May need to reflash.
 
-## Accelerometer (LIS3DHTR) Issues
+## Accelerometer (LIS3DH Module) Issues
 
-### Can't communicate with LIS3DHTR
+### Can't communicate with LIS3DH
 
 | Check | Fix |
 |-------|-----|
 | I2C address correct? | Try both 0x18 and 0x19. SDO pin LOW=0x18, HIGH=0x19 |
 | I2C wiring? | Verify SDA=GPIO19, SCL=GPIO20 continuity |
 | WHO_AM_I register? | Read register 0x0F — should return 0x33 |
-| Pull-up resistors? | I2C needs pull-ups (4.7kΩ). August PCB may have them already |
+| Module powered? | Verify 3.3V on module VCC pin |
 | Bus conflict? | Ensure no SPI device is sharing GPIO19/20 |
+
+> [!TIP]
+> The LIS3DH breakout module includes onboard I2C pull-up resistors. No external pull-ups needed.
 
 ### Position detection unreliable
 
 - **Recalibrate:** Read accelerometer values in both locked and unlocked positions. Update thresholds.
-- **Mounting angle:** The LIS3DHTR relies on gravity direction. If the lock is mounted at an unusual angle, the axis thresholds change.
+- **Mounting angle:** The LIS3DH relies on gravity direction. If the lock is mounted at an unusual angle, the axis thresholds change.
+- **Module placement:** The LIS3DH module must be mounted on the rotating part of the lock (or in a fixed position that correlates with bolt position).
 - **Vibration:** Door vibration can cause false readings. Add a moving average filter (sample 10 readings, average them).
 
 ## WiFi / Network Issues
@@ -123,9 +149,10 @@ Common problems and solutions for the August HomeKey mod.
 
 ### ESP32 resets randomly
 
-- Battery voltage may be dropping below 3.0V under load (motor start).
-- Add a 470μF capacitor across the 3.3V rail to handle motor inrush.
-- Check for loose wires that may disconnect momentarily during motor vibration.
+- **Check DC-DC step-down output:** Measure 3.3V rail with multimeter during motor operation. It should stay stable.
+- Battery voltage may be dropping below the step-down's minimum input under load (motor start).
+- Add a 470μF capacitor across the 3.3V output rail to handle transients.
+- Check for loose wires on the proto PCB that may disconnect during motor vibration.
 
 ## Firmware Issues
 

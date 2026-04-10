@@ -2,25 +2,28 @@
 
 ## System Overview
 
-This project replaces the original August Smart Lock Gen 2 (ASL-02) brain with an ESP32-C6 Super Mini, adding Apple HomeKey, HomeKit, MQTT, and Zigbee capabilities while reusing all original mechanical and power components.
+This project replaces the entire original August Smart Lock Gen 2 (ASL-02) PCB with a new custom control board built on a prototype PCB using breakout modules. Only the mechanical components are reused (motor, gears, housing, battery holder).
 
 ### Original vs Modified Architecture
 
 ```
 ORIGINAL (ASL-02)                     MODIFIED
-┌──────────────────────┐              ┌──────────────────────┐
-│  STM32L152 (main MCU)│              │  ESP32-C6 Super Mini │
-│  CC2541 (BLE radio)  │   ────►      │  + PN532 NFC (SPI)   │
-│  Proprietary BLE     │              │  + NFC Antenna (IPEX) │
-└──────────────────────┘              └──────────────────────┘
+┌──────────────────────┐              ┌──────────────────────────┐
+│  STM32L152 (main MCU)│              │  NEW PROTO PCB BUILD:    │
+│  CC2541 (BLE radio)  │              │                          │
+│  DRV8833 (onboard)   │   ────►      │  ESP32-C6 Super Mini     │
+│  LIS3DHTR (onboard)  │  (removed)   │  + PN532 NFC Mini (SPI)  │
+│  74AC541 LED driver  │              │  + DRV8833 module         │
+│  Voltage regulator   │              │  + LIS3DH module          │
+│  Proprietary BLE     │              │  + DC-DC step-down        │
+└──────────────────────┘              │  + WS2812B LED ring       │
+                                      └──────────────────────────┘
         │                                      │
-        │ (unchanged)                          │ (unchanged)
+        │ (reused)                             │ (reused)
         ▼                                      ▼
 ┌──────────────────────┐              ┌──────────────────────┐
-│  DRV8833 motor driver│              │  DRV8833 motor driver│
 │  DC motor + gears    │              │  DC motor + gears    │
-│  LIS3DHTR accel      │              │  LIS3DHTR accel      │
-│  74AC541 LED driver  │              │  74AC541 LED driver  │
+│  Lock housing        │              │  Lock housing        │
 │  4xAA batteries      │              │  4xAA batteries      │
 └──────────────────────┘              └──────────────────────┘
 ```
@@ -33,39 +36,40 @@ ORIGINAL (ASL-02)                     MODIFIED
                     │           (6V nominal)                 │
                     └────────┬──────────────┬───────────────┘
                              │              │
-                        6V rail         3.3V rail
-                        (motor)    (via onboard regulator)
+                        6V direct      DC-DC Step-Down
+                        (motor)        6V → 3.3V module
                              │              │
                     ┌────────▼──────┐   ┌───▼───────────────┐
                     │   DRV8833     │   │  ESP32-C6         │
-                    │   H-Bridge    │   │  Super Mini       │
+                    │   Module      │   │  Super Mini       │
                     │               │   │                   │
                     │  AIN1◄────────┼───┤  GPIO5 (PWM)     │
                     │  AIN2◄────────┼───┤  GPIO6 (PWM)     │
                     │  BIN1◄────────┼───┤  GPIO7 (PWM)     │
                     │  BIN2◄────────┼───┤  GPIO8 (PWM)     │
-                    │  nSLEEP──3V3  │   │                   │
                     │               │   │                   │
                     │  AOUT1/2──────┼───┤► DC Motor         │
                     └───────────────┘   │                   │
-                                        │  GPIO19 (SDA)─────┼──► LIS3DHTR
+                                        │  GPIO19 (SDA)─────┼──► LIS3DH module
                     ┌───────────────┐   │  GPIO20 (SCL)─────┼──► (I2C)
                     │   PN532       │   │                   │
-                    │   NFC Mini    │   │                   │
+                    │   NFC Mini    │   │  GPIO0 ───────────┼──► WS2812B LEDs
                     │               │   │                   │
-                    │  SCK──────────┼───┤  GPIO18           │
+                    │  SCK──────────┼───┤  GPIO4            │
                     │  MISO─────────┼───┤  GPIO2            │
-                    │  MOSI─────────┼───┤  GPIO7 *conflict  │
+                    │  MOSI─────────┼───┤  GPIO3            │
                     │  SS/CS────────┼───┤  GPIO10           │
                     │               │   │                   │
                     │  ┌─IPEX──┐   │   │  WiFi  ──► HomeKit│
                     │  │NFC Ant│   │   │  802.15.4─► Zigbee│
                     │  └───────┘   │   │                   │
                     └───────────────┘   └───────────────────┘
+
+              ── All modules mounted on a prototype PCB ──
 ```
 
-> [!WARNING]
-> The pin assignments above are preliminary. Some pins will conflict and must be reassigned after the PCB reverse-engineering phase. See [wiring-guide.md](wiring-guide.md) for conflict resolution.
+> [!NOTE]
+> All pin assignments are final and conflict-free. See [wiring-guide.md](wiring-guide.md) for the complete wiring reference.
 
 ## Software Architecture
 
@@ -91,7 +95,8 @@ ORIGINAL (ASL-02)                     MODIFIED
 │  │              Lock Control Logic                        │  │
 │  │                                                        │  │
 │  │  - Motor control (DRV8833 via PWM)                     │  │
-│  │  - Position sensing (LIS3DHTR via I2C)                 │  │
+│  │  - Position sensing (LIS3DH module via I2C)             │  │
+│  │  - LED feedback (WS2812B via NeoPixel protocol)         │  │
 │  │  - State machine: LOCKED ↔ UNLOCKED                    │  │
 │  └────────────────────────────────────────────────────────┘  │
 │                                                              │
@@ -147,14 +152,14 @@ iPhone/Watch          PN532             ESP32-C6          DRV8833         Motor
 ```
 4xAA Batteries (6V nominal, 4V cutoff)
 │
-├──► 6V Rail ──► DRV8833 VM ──► DC Motor (only during lock/unlock)
+├──► 6V direct ──► DRV8833 module VM ──► DC Motor (only during lock/unlock)
 │
-└──► 3.3V Regulator (on August PCB or ESP32-C6 onboard)
+└──► DC-DC Step-Down Module (6V → 3.3V)
      │
-     ├──► ESP32-C6 (main power consumer in idle)
-     ├──► PN532 (idle current ~50mA — consider power gating)
-     ├──► LIS3DHTR (~10μA in low-power mode)
-     └──► 74AC541 LED driver
+     ├──► ESP32-C6 3V3 pin (main power consumer in idle)
+     ├──► PN532 VCC (idle current ~50mA — consider power gating)
+     ├──► LIS3DH module (~10μA in low-power mode)
+     └──► WS2812B LEDs (~20mA per LED at moderate brightness)
 ```
 
 > [!TIP]

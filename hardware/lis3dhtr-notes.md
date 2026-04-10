@@ -1,8 +1,11 @@
-# LIS3DHTR Accelerometer — Technical Notes
+# LIS3DH Accelerometer Module — Technical Notes
 
 ## Overview
 
-The LIS3DHTR is a 3-axis MEMS accelerometer by STMicroelectronics. In the August Smart Lock, it detects the rotational position of the deadbolt by measuring the gravitational acceleration vector at different angles.
+The LIS3DH is a 3-axis MEMS accelerometer by STMicroelectronics. We use a **LIS3DH breakout module** mounted on the proto PCB to detect the rotational position of the deadbolt by measuring the gravitational acceleration vector at different angles.
+
+> [!NOTE]
+> We use a standalone LIS3DH breakout module, not the LIS3DHTR that was on the original August PCB. The LIS3DH and LIS3DHTR are functionally identical — same registers, same I2C address, same behavior. The breakout module includes onboard I2C pull-up resistors, so no external pull-ups are needed.
 
 ## Key Specifications
 

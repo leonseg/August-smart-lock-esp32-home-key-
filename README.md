@@ -7,11 +7,18 @@
 
 ## Overview
 
-A surgical modification of the **August Smart Lock Gen 2 (ASL-02)** that replaces the original STM32L152 + CC2541 BLE combo with a single **ESP32-C6 Super Mini**, adding **Apple HomeKey** (NFC tap-to-unlock), **native HomeKit**, **MQTT integration** with Home Assistant, and **Zigbee** mesh routing capability.
+A complete brain transplant of the **August Smart Lock Gen 2 (ASL-02)**. The original PCB (STM32L152 + CC2541 BLE + all onboard ICs) is removed entirely and replaced with a new custom control board built on a **prototype PCB** using off-the-shelf breakout modules, centered around an **ESP32-C6 Super Mini**.
 
-The original lock's mechanical components are fully reused: DC motor with gears, DRV8833 motor driver, LIS3DHTR accelerometer for lock position sensing, 74AC541 LED driver, and the 4xAA battery holder (6V motor rail, 3V logic rail).
+This adds **Apple HomeKey** (NFC tap-to-unlock), **native HomeKit**, **MQTT integration** with Home Assistant, and **Zigbee** mesh routing. The original LED ring is replaced with **WS2812B addressable LEDs**.
 
-This is the first public documentation of this type of modification. No existing teardown or mod guide existed for this specific conversion path.
+Only the mechanical components are reused from the original lock: DC motor with gears, lock housing, and 4xAA battery holder.
+
+This is the first public documentation of this type of modification.
+
+| | |
+|---|---|
+| ![August PCB removed](docs/images/august-pcb-removed.jpg) | ![Lock internals with gears](docs/images/lock-internals-gears.jpg) |
+| *Original August PCB (removed)* | *Lock body — motor and gear train (reused)* |
 
 ## Features
 
@@ -20,8 +27,10 @@ This is the first public documentation of this type of modification. No existing
 - **MQTT → Home Assistant** — Real-time lock state, remote control, and automations via MQTT
 - **Zigbee Mesh Router** — ESP32-C6's IEEE 802.15.4 radio acts as a Zigbee router for your mesh network
 - **WiFi 6 + BLE 5** — Modern wireless stack natively supported by the ESP32-C6
-- **Lock Position Feedback** — LIS3DHTR accelerometer detects locked/unlocked position via gravitational angle
+- **WS2812B Status Ring** — Addressable RGB LEDs replace the original LED ring, fully customizable colors/animations
+- **Lock Position Feedback** — LIS3DH accelerometer module detects locked/unlocked position via gravitational angle
 - **Silent Operation** — 20kHz PWM motor drive (above human hearing threshold)
+- **Proto PCB Build** — All breakout modules on a single prototype board, no original PCB reverse-engineering needed
 
 ## Hardware Required
 
@@ -30,43 +39,54 @@ This is the first public documentation of this type of modification. No existing
 | ESP32-C6 Super Mini | Main MCU — WiFi 6, BLE 5, Zigbee | ~$4 |
 | Elechouse PN532 NFC MINI | NFC reader for HomeKey (SPI mode) | ~$47 |
 | NFC Antenna IPX 13.56MHz | External antenna for through-door reading | ~$3 |
-| 30AWG Silicone Wire | Point-to-point wiring on PCB | ~$3 |
-| Flux (no-clean) | For desoldering/soldering work | ~$4 |
-| **Total** | | **~$61** |
+| DRV8833 Motor Driver Module | Breakout board — dual H-bridge, 1.5A/ch | ~$6 |
+| LIS3DH Accelerometer Module | Breakout board — 3-axis, I2C | ~$3 |
+| DC-DC Step-Down Module | Buck converter — 6V battery → 3.3V logic | ~$2 |
+| WS2812B LED Ring/Strip | Addressable RGB LEDs for status indication | ~$3 |
+| Prototype PCB Board | Mounting board for all modules | ~$2 |
+| 30AWG Silicone Wire | Point-to-point wiring | ~$3 |
+| Flux (no-clean) | For soldering work | ~$4 |
+| **Total** | | **~$77** |
 
 > [!NOTE]
-> You also need an August Smart Lock Gen 2 (ASL-02, FCC ID: 2AB6UASL2), basic soldering equipment, a multimeter, and a USB-C cable for flashing.
+> You also need an August Smart Lock Gen 2 (ASL-02, FCC ID: 2AB6UASL2), a soldering iron, a multimeter, and a USB-C cable for flashing.
 
 ## How It Works
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     DOOR (exterior)                          │
-│                                                              │
-│    ┌──────────────┐    IPEX cable    ┌──────────────────┐    │
-│    │  NFC Antenna  │◄───────────────►│  PN532 NFC Mini  │    │
-│    │  (13.56 MHz)  │                 │  (SPI mode)      │    │
-│    │  in door edge  │                 └────────┬─────────┘    │
-│    └──────────────┘                           │ SPI bus       │
-│                                                │              │
-│                              ┌─────────────────▼──────────┐  │
-│  ┌──────────┐   I2C bus     │     ESP32-C6 Super Mini     │  │
-│  │ LIS3DHTR │◄─────────────►│                             │  │
-│  │ (accel)  │               │  WiFi ──► HomeKit + MQTT    │  │
-│  └──────────┘               │  BLE  ──► (reserved)        │  │
-│                              │  802.15.4 ──► Zigbee Router │  │
-│  ┌──────────┐   PWM x2     │                             │  │
-│  │ DRV8833  │◄─────────────►│  GPIO5/6 ──► AIN1/AIN2     │  │
-│  │ (H-bridge)│               │  GPIO7/8 ──► BIN1/BIN2     │  │
-│  └────┬─────┘               └─────────────────────────────┘  │
-│       │                                                       │
-│  ┌────▼─────┐    ┌────────────┐                              │
-│  │ DC Motor │    │ 4xAA Batt  │                              │
-│  │ + Gears  │    │ 6V + 3V3   │                              │
-│  └──────────┘    └────────────┘                              │
-│                                                              │
-│                     AUGUST LOCK BODY (interior)              │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                     DOOR (exterior)                           │
+│                                                               │
+│    ┌──────────────┐    IPEX cable    ┌───────────────────┐    │
+│    │  NFC Antenna  │◄───────────────►│  PN532 NFC Mini   │    │
+│    │  (13.56 MHz)  │                 │  (SPI mode)       │    │
+│    │  in door edge  │                 └────────┬──────────┘    │
+│    └──────────────┘                           │ SPI           │
+│                                                │               │
+│         ┌── PROTO PCB ─────────────────────────┤              │
+│         │                                      │              │
+│         │  ┌──────────┐       ┌────────────────▼───────────┐  │
+│         │  │ LIS3DH   │ I2C  │     ESP32-C6 Super Mini    │  │
+│         │  │ (module)  │◄────►│                            │  │
+│         │  └──────────┘      │  WiFi ──► HomeKit + MQTT   │  │
+│         │                     │  802.15.4 ──► Zigbee       │  │
+│         │  ┌──────────┐ PWM  │                            │  │
+│         │  │ DRV8833  │◄────►│  GPIO0 ──► WS2812B LEDs   │  │
+│         │  │ (module)  │      └────────────────────────────┘  │
+│         │  └────┬─────┘                                       │
+│         │       │          ┌──────────┐                       │
+│         │  ┌────▼─────┐   │ DC-DC    │                       │
+│         │  │ DC Motor │   │ Step-Down│  6V → 3.3V            │
+│         │  │ (reused)  │   └─────┬────┘                       │
+│         │  └──────────┘         │                             │
+│         └───────────────────────┼─────────────────────────────│
+│                                 │                             │
+│  ┌────────────┐    ┌────────────▼─┐    ┌───────────────┐     │
+│  │ WS2812B    │    │ 4xAA Battery │    │ Lock Housing  │     │
+│  │ LED Ring   │    │ Pack (6V)    │    │ + Gears       │     │
+│  └────────────┘    └──────────────┘    └───────────────┘     │
+│                     AUGUST LOCK BODY (interior)               │
+└──────────────────────────────────────────────────────────────┘
 
          ▼ WiFi / MQTT ▼
 
@@ -82,7 +102,7 @@ This is the first public documentation of this type of modification. No existing
 
 1. **Understand the architecture** → [`docs/architecture.md`](docs/architecture.md)
 2. **Gather components** → [`docs/bom.md`](docs/bom.md)
-3. **Open the lock & map the PCB** → [`docs/pcb-mapping.md`](docs/pcb-mapping.md)
+3. **Open the lock & identify motor/battery** → [`docs/pcb-mapping.md`](docs/pcb-mapping.md)
 4. **Wire everything up** → [`docs/wiring-guide.md`](docs/wiring-guide.md)
 5. **Install the NFC antenna** → [`docs/nfc-antenna-install.md`](docs/nfc-antenna-install.md)
 6. **Flash the firmware** → [`docs/flashing-guide.md`](docs/flashing-guide.md)
@@ -91,40 +111,43 @@ This is the first public documentation of this type of modification. No existing
 
 ## Project Status
 
-- [ ] Open lock and photograph PCB (recto/verso HD photos)
-- [ ] Reverse-engineer PCB traces with multimeter continuity
-- [ ] Complete STM32 → component pin mapping
-- [ ] Order ESP32-C6 Super Mini + PN532 + NFC antenna
-- [ ] Desolder STM32L152 and CC2541 BLE
-- [ ] Solder ESP32-C6 Super Mini point-to-point
+- [x] Open lock and photograph internals
+- [ ] Order all components (ESP32-C6, PN532, DRV8833 module, LIS3DH module, DC-DC step-down, WS2812B, proto PCB)
+- [ ] Remove original August PCB
+- [ ] Identify motor wires and battery connector
+- [ ] Assemble new control board on proto PCB
+- [ ] Wire DC-DC step-down converter (6V → 3.3V)
+- [ ] Wire DRV8833 module to motor
+- [ ] Wire LIS3DH module (I2C)
+- [ ] Wire PN532 NFC module (SPI)
+- [ ] Wire WS2812B LED ring
 - [ ] Flash HomeKey-ESP32 firmware
 - [ ] Configure MQTT broker and Home Assistant
 - [ ] Calibrate motor timing (lock/unlock duration)
-- [ ] Calibrate LIS3DHTR position thresholds
+- [ ] Calibrate LIS3DH position thresholds
 - [ ] Test Apple HomeKey tap-to-unlock
 - [ ] Install NFC antenna in door edge
 - [ ] Final assembly and long-term testing
 
 ## Important Notes
 
-> [!WARNING]
-> This project requires manual reverse-engineering of the August PCB. No public pinout documentation exists for the ASL-02. You must trace every connection with a multimeter before wiring.
+> [!NOTE]
+> The original August PCB is fully removed and replaced. You only need to identify the motor wires (2 wires) and battery connector — no complex PCB reverse-engineering required.
 
 > [!WARNING]
 > Apple HomeKey support is based on reverse-engineered protocols (HomeKey-ESP32 by rednblkx). This is not officially supported by Apple and may break with future iOS updates.
 
 - **SPI is mandatory** for the PN532 when used with HomeKey-ESP32 (I2C mode is not supported for HomeKey)
-- **Pin conflicts** exist between the default SPI pins and I2C/motor pins — see the [wiring guide](docs/wiring-guide.md) for resolution
 - **Zigbee concurrent operation** with WiFi + HomeKey has not been validated yet — this is a [TODO: validate] item
 - **Battery life** will differ from the original lock due to WiFi power consumption; expect shorter battery life
-- The original Bluetooth functionality is completely removed — this mod replaces it entirely
+- The original PCB, Bluetooth, LEDs, and onboard ICs are all removed — everything is replaced
 
 ## Hardware Reference
 
 - [ESP32-C6 Super Mini Pinout](hardware/pinout-esp32c6-supermini.md)
-- [Pin Mapping (STM32 → ESP32-C6)](hardware/pinout-mapping.md)
+- [Pin Mapping (ESP32-C6 → Modules)](hardware/pinout-mapping.md)
 - [DRV8833 Motor Driver Notes](hardware/drv8833-notes.md)
-- [LIS3DHTR Accelerometer Notes](hardware/lis3dhtr-notes.md)
+- [LIS3DH Accelerometer Notes](hardware/lis3dhtr-notes.md)
 
 ## Credits
 

@@ -2,7 +2,7 @@
  * motor_control.h
  *
  * Pin definitions and constants for controlling the August Smart Lock
- * DC motor via the DRV8833 dual H-bridge driver.
+ * DC motor via a DRV8833 breakout module on the proto PCB.
  *
  * The DRV8833 operates in H-bridge mode:
  *   - Forward:  AIN1 = PWM, AIN2 = LOW  (motor turns clockwise)
@@ -10,11 +10,7 @@
  *   - Brake:    AIN1 = HIGH, AIN2 = HIGH (active braking)
  *   - Coast:    AIN1 = LOW, AIN2 = LOW   (motor free-spins)
  *
- * The August lock uses Channel A for the main motor.
- * Channel B may be unused or connected to a speaker — verify during PCB mapping.
- *
- * FIXME: All GPIO assignments are preliminary. Update after PCB reverse-engineering
- *        confirms the actual DRV8833 pin connections.
+ * Channel A drives the lock motor. Channel B is available for a buzzer or unused.
  */
 
 #ifndef MOTOR_CONTROL_H
@@ -24,15 +20,19 @@
 #define MOTOR_AIN1_PIN      5   // GPIO5 — PWM output for forward rotation
 #define MOTOR_AIN2_PIN      6   // GPIO6 — PWM output for reverse rotation
 
-/* --- DRV8833 Channel B (Secondary — possibly unused) --- */
-// TODO: Verify if Channel B is connected to anything on the August PCB
+/* --- DRV8833 Channel B (available for buzzer or unused) --- */
 #define MOTOR_BIN1_PIN      7   // GPIO7 — PWM output
 #define MOTOR_BIN2_PIN      8   // GPIO8 — PWM output
 
+/* --- WS2812B Status LEDs --- */
+#define LED_DATA_PIN        0   // GPIO0 — WS2812B data (NeoPixel protocol)
+#define LED_NUM_PIXELS     12   // Number of WS2812B LEDs in the ring
+#define LED_BRIGHTNESS    128   // Default brightness (0-255)
+
 /* --- DRV8833 Control --- */
-// nSLEEP is tied to 3.3V (always active) to simplify the design.
-// This draws ~1mA standby but avoids needing a GPIO for sleep control.
-// If battery life is critical, cut the 3.3V tie and use a GPIO instead:
+// nSLEEP on the module is tied to 3.3V (always active).
+// Most DRV8833 modules have an onboard pull-up on nSLEEP.
+// If battery life is critical, use a GPIO to control sleep:
 // #define MOTOR_NSLEEP_PIN  9
 
 /* --- PWM Configuration --- */
@@ -50,7 +50,7 @@
 /* --- Timing --- */
 // Duration (ms) the motor runs to fully lock or unlock.
 // TODO: Calibrate these values with the actual lock mechanism.
-//       Start with 1500ms and adjust based on LIS3DHTR position feedback.
+//       Start with 1500ms and adjust based on LIS3DH position feedback.
 #define MOTOR_LOCK_DURATION_MS      1500
 #define MOTOR_UNLOCK_DURATION_MS    1500
 

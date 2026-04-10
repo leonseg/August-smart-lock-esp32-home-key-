@@ -39,7 +39,7 @@
   },
 
   "motor": {
-    "_comment": "DRV8833 H-bridge control pins. PWM at 20kHz.",
+    "_comment": "DRV8833 module H-bridge control pins. PWM at 20kHz.",
     "pin_ain1": 5,
     "pin_ain2": 6,
     "pin_bin1": 7,
@@ -52,7 +52,7 @@
   },
 
   "accelerometer": {
-    "_comment": "LIS3DHTR on I2C bus for lock position feedback",
+    "_comment": "LIS3DH module on I2C bus for lock position feedback",
     "interface": "I2C",
     "pin_sda": 19,
     "pin_scl": 20,
@@ -72,8 +72,10 @@
   },
 
   "leds": {
-    "_comment": "TODO: Map 74AC541 LED driver pins after PCB reverse-engineering",
-    "pin_enable": -1,
-    "pin_data": -1
+    "_comment": "WS2812B addressable LED ring for lock status indication",
+    "type": "WS2812B",
+    "pin_data": 0,
+    "num_leds": 12,
+    "brightness": 128
   }
 }
