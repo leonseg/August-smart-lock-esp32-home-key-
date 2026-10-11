@@ -12,6 +12,7 @@ static lock_state_t    s_state = LOCK_STATE_UNKNOWN;
 static uint32_t        s_motion_started = 0;
 static uint32_t        s_settle_start = 0;
 static bool            s_settling = false;
+static lock_state_t    s_target = LOCK_STATE_UNKNOWN;
 static lock_state_cb_t s_cb = nullptr;
 
 static void set_state(lock_state_t ns) {
@@ -25,7 +26,9 @@ static void set_state(lock_state_t ns) {
 void lock_controller_init() {
     motor_init();
     if (!accel_init()) {
-        set_state(LOCK_STATE_ERROR);
+        // No position sensor: run in timed mode — the motor runs for the full
+        // timeout and the target state is assumed reached (no jam detection).
+        LOG_TAG("LOCK", "no accelerometer — timed mode, position is assumed");
         return;
     }
     // Sample a few readings to stabilise, then infer initial state
@@ -42,6 +45,7 @@ static bool start_motion(motor_dir_t dir, lock_state_t transient) {
         LOG_TAG("LOCK", "ignored request — already in motion");
         return false;
     }
+    s_target = (dir == MOTOR_DIR_LOCK) ? LOCK_STATE_LOCKED : LOCK_STATE_UNLOCKED;
     set_state(transient);
     motor_drive(dir, (dir == MOTOR_DIR_LOCK) ? MOTOR_DUTY_LOCK : MOTOR_DUTY_UNLOCK);
     s_motion_started = millis();
@@ -74,7 +78,7 @@ void lock_controller_loop() {
 
     if (s_settling) {
         if (millis() - s_settle_start >= MOTOR_SETTLE_MS) {
-            lock_state_t measured = accel_inferred_state();
+            lock_state_t measured = accel_available() ? accel_inferred_state() : s_target;
             s_settling = false;
             if (measured == LOCK_STATE_LOCKED || measured == LOCK_STATE_UNLOCKED) {
                 set_state(measured);
@@ -95,8 +99,7 @@ void lock_controller_loop() {
                        : (elapsed >= MOTOR_UNLOCK_TIMEOUT_MS);
 
     // Early stop when the accelerometer confirms we've reached the target
-    lock_state_t target = (s_state == LOCK_STATE_LOCKING) ? LOCK_STATE_LOCKED : LOCK_STATE_UNLOCKED;
-    bool reached = (accel_inferred_state() == target) && (elapsed > 200);
+    bool reached = (accel_inferred_state() == s_target) && (elapsed > 200);
 
     if (reached || timeout) {
         motor_brake();

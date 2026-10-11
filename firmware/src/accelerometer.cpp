@@ -51,6 +51,8 @@ bool accel_init() {
     return true;
 }
 
+bool accel_available() { return s_ok; }
+
 bool accel_poll() {
     if (!s_ok) return false;
     uint32_t now = millis();
