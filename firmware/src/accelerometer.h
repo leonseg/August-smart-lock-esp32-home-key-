@@ -17,6 +17,9 @@
  */
 bool accel_init();
 
+// True if the LIS3DH was detected at init. When false the lock runs in timed mode.
+bool accel_available();
+
 /**
  * Poll the accelerometer. Call from loop().
  * Returns true if a new reading was taken.
