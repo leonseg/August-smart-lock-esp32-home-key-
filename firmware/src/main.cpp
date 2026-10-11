@@ -23,8 +23,10 @@
 #include "nfc.h"
 #include "wifi_mgr.h"
 #include "mqtt.h"
+#include "web_ui.h"
 #if SERIAL_TEST_CONSOLE
 #include <Preferences.h>
+#include <WiFi.h>
 #include "motor.h"
 #endif
 
@@ -59,6 +61,7 @@ static void update_led_for_wifi() {
 //   status | lock | unlock | pulse <lock|unlock> <ms> | stop
 //   led <mode 0-12> | rgb <r> <g> <b> | bri <0-255>
 //   wifi <ssid>|<pass>   mqtt <host>|<port>|<user>|<pass>   (saved to NVS)
+//   scan (list WiFi networks the lock can see)
 //   reboot | diag (read back motor pins) | raw <lock|unlock> <ms> (DC, no PWM)
 static void console_exec(String line) {
     line.trim();
@@ -76,6 +79,16 @@ static void console_exec(String line) {
         LOG_TAG("TEST", "request_unlock -> %d", lock_controller_request_unlock());
     } else if (line == "stop") {
         motor_stop();
+    } else if (line == "scan") {
+        // Blocking scan; the radio must not be in AP-only mode
+        if (WiFi.getMode() == WIFI_AP) WiFi.mode(WIFI_AP_STA);
+        int n = WiFi.scanNetworks();
+        LOG_TAG("TEST", "scan found %d networks", n);
+        for (int i = 0; i < n; i++) {
+            LOG_TAG("TEST", "scan %d: ch=%d rssi=%d open=%d ssid='%s'", i, (int)WiFi.channel(i), (int)WiFi.RSSI(i),
+                    WiFi.encryptionType(i) == WIFI_AUTH_OPEN, WiFi.SSID(i).c_str());
+        }
+        WiFi.scanDelete();
     } else if (line == "diag") {
         motor_diag();
     } else if (sscanf(line.c_str(), "%11s %11s %d", cmd, arg, &a) == 3 && !strcmp(cmd, "raw")) {
@@ -162,6 +175,7 @@ void loop() {
     nfc_poll();
     wifi_mgr_loop();
     mqtt_loop();
+    web_ui_loop();
 #if SERIAL_TEST_CONSOLE
     console_poll();
 #endif
