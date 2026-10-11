@@ -24,6 +24,7 @@
 #include "wifi_mgr.h"
 #include "mqtt.h"
 #if SERIAL_TEST_CONSOLE
+#include <Preferences.h>
 #include "motor.h"
 #endif
 
@@ -57,6 +58,8 @@ static void update_led_for_wifi() {
 // hardware be exercised without WiFi/MQTT:
 //   status | lock | unlock | pulse <lock|unlock> <ms> | stop
 //   led <mode 0-12> | rgb <r> <g> <b> | bri <0-255>
+//   wifi <ssid>|<pass>   mqtt <host>|<port>|<user>|<pass>   (saved to NVS)
+//   reboot
 static void console_exec(String line) {
     line.trim();
     if (line.isEmpty()) return;
@@ -73,6 +76,31 @@ static void console_exec(String line) {
         LOG_TAG("TEST", "request_unlock -> %d", lock_controller_request_unlock());
     } else if (line == "stop") {
         motor_stop();
+    } else if (line == "reboot") {
+        ESP.restart();
+    } else if (line.startsWith("wifi ")) {
+        int sep = line.indexOf('|');
+        String ssid = (sep < 0) ? line.substring(5) : line.substring(5, sep);
+        String pass = (sep < 0) ? String("") : line.substring(sep + 1);
+        LOG_TAG("TEST", "wifi saved ssid='%s' -> %d (reboot to apply)", ssid.c_str(),
+                wifi_mgr_save_credentials(ssid, pass));
+    } else if (line.startsWith("mqtt ")) {
+        // host|port|user|pass — trailing fields optional
+        String f[4]; int n = 0, from = 5;
+        while (n < 4) {
+            int sep = line.indexOf('|', from);
+            f[n++] = (sep < 0) ? line.substring(from) : line.substring(from, sep);
+            if (sep < 0) break;
+            from = sep + 1;
+        }
+        Preferences p;
+        p.begin(NVS_NAMESPACE, false);
+        p.putString(NVS_KEY_MQTT_HOST, f[0]);
+        p.putUInt(NVS_KEY_MQTT_PORT, f[1].isEmpty() ? MQTT_DEFAULT_PORT : f[1].toInt());
+        p.putString(NVS_KEY_MQTT_USER, f[2]);
+        p.putString(NVS_KEY_MQTT_PASS, f[3]);
+        p.end();
+        LOG_TAG("TEST", "mqtt saved host='%s' user='%s' (reboot to apply)", f[0].c_str(), f[2].c_str());
     } else if (sscanf(line.c_str(), "%11s %11s %d", cmd, arg, &a) == 3 && !strcmp(cmd, "pulse")) {
         a = constrain(a, 10, 1000);
         motor_drive(!strcmp(arg, "unlock") ? MOTOR_DIR_UNLOCK : MOTOR_DIR_LOCK, MOTOR_PWM_MAX_DUTY);
@@ -98,7 +126,7 @@ static void console_poll() {
     while (Serial.available()) {
         char ch = (char)Serial.read();
         if (ch == '\n' || ch == '\r') { console_exec(buf); buf = ""; }
-        else if (buf.length() < 48) buf += ch;
+        else if (buf.length() < 160) buf += ch;
     }
 }
 #endif
