@@ -43,6 +43,12 @@ void motor_brake();
  */
 bool motor_is_running();
 
+// Bench diagnostics: drive each bridge input as a plain GPIO and read the pad
+// back, to tell an ESP-side fault from a driver/power/wiring fault.
+void motor_diag();
+// Drive the bridge with plain DC levels (no PWM) for ms, then coast.
+void motor_raw(motor_dir_t dir, uint32_t ms);
+
 /**
  * Returns the current direction (only valid if motor_is_running()).
  */

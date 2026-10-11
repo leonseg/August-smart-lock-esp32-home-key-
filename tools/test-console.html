@@ -93,6 +93,11 @@
         <button id="pulseUnlock" class="needs">Impulsion sens déverrouiller</button>
         <button data-cmd="stop" class="needs danger">STOP</button>
       </div>
+      <div class="row">
+        <button data-cmd="diag" class="needs">Diagnostic des broches</button>
+        <button id="rawLock" class="needs">Continu (sans PWM) verrouiller</button>
+        <button id="rawUnlock" class="needs">Continu (sans PWM) déverrouiller</button>
+      </div>
       <p class="note">Entre 10 et 1000 ms. Utile pour vérifier le sens de rotation sans forcer en butée.</p>
     </section>
 
@@ -331,6 +336,12 @@
   }
   $('pulseLock').addEventListener('click', function () { pulse('lock'); });
   $('pulseUnlock').addEventListener('click', function () { pulse('unlock'); });
+  function raw(dir) {
+    var ms = Math.max(10, Math.min(2000, parseInt($('pulseMs').value, 10) || 300));
+    send('raw ' + dir + ' ' + ms);
+  }
+  $('rawLock').addEventListener('click', function () { raw('lock'); });
+  $('rawUnlock').addEventListener('click', function () { raw('unlock'); });
   $('sendColor').addEventListener('click', function () {
     var h = $('color').value;
     send('rgb ' + parseInt(h.substr(1, 2), 16) + ' ' + parseInt(h.substr(3, 2), 16) + ' ' + parseInt(h.substr(5, 2), 16));

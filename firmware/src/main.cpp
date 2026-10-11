@@ -59,7 +59,7 @@ static void update_led_for_wifi() {
 //   status | lock | unlock | pulse <lock|unlock> <ms> | stop
 //   led <mode 0-12> | rgb <r> <g> <b> | bri <0-255>
 //   wifi <ssid>|<pass>   mqtt <host>|<port>|<user>|<pass>   (saved to NVS)
-//   reboot
+//   reboot | diag (read back motor pins) | raw <lock|unlock> <ms> (DC, no PWM)
 static void console_exec(String line) {
     line.trim();
     if (line.isEmpty()) return;
@@ -76,6 +76,10 @@ static void console_exec(String line) {
         LOG_TAG("TEST", "request_unlock -> %d", lock_controller_request_unlock());
     } else if (line == "stop") {
         motor_stop();
+    } else if (line == "diag") {
+        motor_diag();
+    } else if (sscanf(line.c_str(), "%11s %11s %d", cmd, arg, &a) == 3 && !strcmp(cmd, "raw")) {
+        motor_raw(!strcmp(arg, "unlock") ? MOTOR_DIR_UNLOCK : MOTOR_DIR_LOCK, constrain(a, 10, 2000));
     } else if (line == "reboot") {
         ESP.restart();
     } else if (line.startsWith("wifi ")) {

@@ -12,10 +12,16 @@
  */
 
 #include "motor.h"
+#include <driver/gpio.h>
 
 // arduino-esp32 core 3.x replaced the channel-based LEDC API with a pin-based one
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-static void pwm_attach(uint8_t pin, uint8_t /*ch*/) { ledcAttach(pin, MOTOR_PWM_FREQ_HZ, MOTOR_PWM_RES_BITS); }
+static void pwm_attach(uint8_t pin, uint8_t /*ch*/) {
+    if (!ledcAttach(pin, MOTOR_PWM_FREQ_HZ, MOTOR_PWM_RES_BITS)) {
+        LOG_TAG("MOTOR", "ledcAttach FAILED on GPIO%u", pin);
+    }
+}
+static void pwm_detach(uint8_t pin) { ledcDetach(pin); }
 static void pwm_write(uint8_t pin, uint8_t /*ch*/, uint32_t duty) { ledcWrite(pin, duty); }
 #else
 static void pwm_attach(uint8_t pin, uint8_t ch) {
@@ -23,6 +29,7 @@ static void pwm_attach(uint8_t pin, uint8_t ch) {
     ledcAttachPin(pin, ch);
 }
 static void pwm_write(uint8_t /*pin*/, uint8_t ch, uint32_t duty) { ledcWrite(ch, duty); }
+static void pwm_detach(uint8_t pin) { ledcDetachPin(pin); }
 #endif
 
 static bool s_running = false;
@@ -85,4 +92,50 @@ bool motor_is_running() {
 
 motor_dir_t motor_current_direction() {
     return s_dir;
+}
+
+// Take both bridge inputs off LEDC and make them readable outputs.
+static void raw_begin() {
+    pwm_detach(PIN_MOTOR_AIN1);
+    pwm_detach(PIN_MOTOR_AIN2);
+    const uint8_t pins[] = {PIN_MOTOR_AIN1, PIN_MOTOR_AIN2};
+    for (uint8_t pin : pins) {
+        gpio_reset_pin((gpio_num_t)pin);
+        gpio_set_direction((gpio_num_t)pin, GPIO_MODE_INPUT_OUTPUT);
+        gpio_set_level((gpio_num_t)pin, 0);
+    }
+}
+
+static void raw_end() {
+    gpio_set_level((gpio_num_t)PIN_MOTOR_AIN1, 0);
+    gpio_set_level((gpio_num_t)PIN_MOTOR_AIN2, 0);
+    pwm_attach(PIN_MOTOR_AIN1, MOTOR_LEDC_CH_AIN1);
+    pwm_attach(PIN_MOTOR_AIN2, MOTOR_LEDC_CH_AIN2);
+    motor_stop();
+}
+
+void motor_diag() {
+    raw_begin();
+    const uint8_t pins[] = {PIN_MOTOR_AIN1, PIN_MOTOR_AIN2};
+    for (uint8_t pin : pins) {
+        gpio_set_level((gpio_num_t)pin, 1);
+        delay(20);
+        int hi = gpio_get_level((gpio_num_t)pin);
+        gpio_set_level((gpio_num_t)pin, 0);
+        delay(20);
+        int lo = gpio_get_level((gpio_num_t)pin);
+        LOG_TAG("MOTOR", "diag GPIO%u: driven HIGH reads %d, driven LOW reads %d -> %s",
+                pin, hi, lo, (hi == 1 && lo == 0) ? "pin OK" : "PIN FAULT (short or dead pad)");
+    }
+    raw_end();
+}
+
+void motor_raw(motor_dir_t dir, uint32_t ms) {
+    raw_begin();
+    gpio_set_level((gpio_num_t)PIN_MOTOR_AIN1, dir == MOTOR_DIR_LOCK ? 1 : 0);
+    gpio_set_level((gpio_num_t)PIN_MOTOR_AIN2, dir == MOTOR_DIR_UNLOCK ? 1 : 0);
+    LOG_TAG("MOTOR", "raw DC dir=%d for %lums (AIN1=%d AIN2=%d read back)", dir, (unsigned long)ms,
+            gpio_get_level((gpio_num_t)PIN_MOTOR_AIN1), gpio_get_level((gpio_num_t)PIN_MOTOR_AIN2));
+    delay(ms);
+    raw_end();
 }
