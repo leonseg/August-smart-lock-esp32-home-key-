@@ -23,6 +23,9 @@
 #include "nfc.h"
 #include "wifi_mgr.h"
 #include "mqtt.h"
+#if SERIAL_TEST_CONSOLE
+#include "motor.h"
+#endif
 
 static void on_lock_state_change(lock_state_t /*old_s*/, lock_state_t new_s) {
     leds_set_mode(leds_mode_for_state(new_s));
@@ -48,6 +51,57 @@ static void update_led_for_wifi() {
         default: break;
     }
 }
+
+#if SERIAL_TEST_CONSOLE
+// Bench-test console over USB serial (esp32c6-bench env only). Lets the
+// hardware be exercised without WiFi/MQTT:
+//   status | lock | unlock | pulse <lock|unlock> <ms> | stop
+//   led <mode 0-12> | rgb <r> <g> <b> | bri <0-255>
+static void console_exec(String line) {
+    line.trim();
+    if (line.isEmpty()) return;
+    char cmd[12] = {0}, arg[12] = {0};
+    int a = 0, b = 0, c = 0;
+
+    if (line == "status") {
+        LOG_TAG("TEST", "lock=%s wifi=%d ip=%s led_mode=%d bri=%u motor_running=%d mqtt=%d",
+                lock_controller_state_str(), wifi_mgr_state(), wifi_mgr_ip().c_str(),
+                leds_mode(), leds_brightness(), motor_is_running(), mqtt_is_connected());
+    } else if (line == "lock") {
+        LOG_TAG("TEST", "request_lock -> %d", lock_controller_request_lock());
+    } else if (line == "unlock") {
+        LOG_TAG("TEST", "request_unlock -> %d", lock_controller_request_unlock());
+    } else if (line == "stop") {
+        motor_stop();
+    } else if (sscanf(line.c_str(), "%11s %11s %d", cmd, arg, &a) == 3 && !strcmp(cmd, "pulse")) {
+        a = constrain(a, 10, 1000);
+        motor_drive(!strcmp(arg, "unlock") ? MOTOR_DIR_UNLOCK : MOTOR_DIR_LOCK, MOTOR_PWM_MAX_DUTY);
+        delay(a);
+        motor_stop();
+        LOG_TAG("TEST", "pulse %s %dms done", arg, a);
+    } else if (sscanf(line.c_str(), "led %d", &a) == 1) {
+        leds_set_mode((led_mode_t)constrain(a, 0, (int)LED_MODE_CUSTOM));
+        LOG_TAG("TEST", "led_mode=%d", leds_mode());
+    } else if (sscanf(line.c_str(), "rgb %d %d %d", &a, &b, &c) == 3) {
+        leds_set_custom_rgb((uint8_t)a, (uint8_t)b, (uint8_t)c);
+        LOG_TAG("TEST", "rgb=%d,%d,%d led_mode=%d", a, b, c, leds_mode());
+    } else if (sscanf(line.c_str(), "bri %d", &a) == 1) {
+        leds_set_brightness((uint8_t)constrain(a, 0, 255));
+        LOG_TAG("TEST", "bri=%u", leds_brightness());
+    } else {
+        LOG_TAG("TEST", "unknown command '%s'", line.c_str());
+    }
+}
+
+static void console_poll() {
+    static String buf;
+    while (Serial.available()) {
+        char ch = (char)Serial.read();
+        if (ch == '\n' || ch == '\r') { console_exec(buf); buf = ""; }
+        else if (buf.length() < 48) buf += ch;
+    }
+}
+#endif
 
 void setup() {
     Serial.begin(DEBUG_BAUD);
@@ -76,6 +130,9 @@ void loop() {
     nfc_poll();
     wifi_mgr_loop();
     mqtt_loop();
+#if SERIAL_TEST_CONSOLE
+    console_poll();
+#endif
 
     // If wifi transitioned, refresh LED mode (unless a transient animation is active)
     static wifi_state_t last_wifi = (wifi_state_t)-1;
